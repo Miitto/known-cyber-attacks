@@ -18,15 +18,7 @@ fn main() {
     ];
 
     let search_terms: Vec<String> = search_dict.iter().filter(| Stride { prefixes, .. } |
-    args.iter().any(|arg| {
-        let contains = prefixes.contains(&arg);
-            dbg!(prefixes);
-            dbg!(arg);
-            contains
-        }
-    )).map(|e| e.text.clone()).collect();
-
-    dbg!(&search_terms);
+    args.iter().any(|arg| prefixes.contains(&arg) )).map(|e| e.text.clone()).collect();
 
     let ignore_dirs = ["target", ".git", "src", "Template", ".vscode"];
     let compile_path = PathBuf::from("./Compile.md");

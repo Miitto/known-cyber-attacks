@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufWriter, Seek, Write};
 use std::path::PathBuf;
@@ -34,7 +35,7 @@ fn main() {
     let mut compile_writer = BufWriter::new(compile_file);
 
     // Read all directories and files in the current directory
-    std::fs::read_dir(".")
+    let _ = std::fs::read_dir(".")
         .unwrap()
         .filter_map(|path_r| {
             path_r
@@ -49,7 +50,7 @@ fn main() {
                 .filter(|path| path.exists())
                 .and_then(|path| File::open(&path).ok().map(|f| (path, f)))
         })
-        .for_each(|(path, mut file)| {
+        .map(|(path, mut file)| {
             let mut reader = std::io::BufReader::new(&file);
             std::io::copy(&mut reader, &mut compile_writer).unwrap();
             compile_writer.write_all("\n\n".as_bytes()).unwrap();
@@ -60,12 +61,8 @@ fn main() {
             
             let mut lines = search_reader.lines();
 
-            let has_keyword = Some(lines.any(|line| {
-                let contains = Some(search_terms.iter().any(|term| line.as_ref().ok().map(|line| line.contains(term)).filter(|t| *t).is_some())).filter(|t| *t).is_some();
-                contains
+            let has_keywords: Vec<&String> = search_terms.iter().filter(|term| lines.any(|line| line.map(|line| line.contains(*term)).ok().filter(|t| *t).is_some())).collect();
 
-            })).filter(|l| *l).map(|_| path);
-            has_keyword.and_then(|path| {
-                Some(println!("{}", path.to_string_lossy()))});
+           (path, has_keywords) 
         });
 }

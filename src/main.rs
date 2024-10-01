@@ -10,7 +10,24 @@ struct Stride {
     paths: Vec<PathBuf>,
 }
 
-const TOP_STRING: &[u8] = "<!DOCTYPE html>
+impl PartialEq for Stride {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Stride {
+    pub fn new(text: &'static str, prefixes: &'static [&'static str]) -> Self {
+        Stride {
+            text: text.into(),
+            prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
+            wanted: false,
+            paths: vec![]
+        }
+    }
+}
+
+const TOP_STRING: &[u8] = b"<!DOCTYPE html>
 <html lang=\"en\">
   <head>
     <meta charset=\"UTF-8\">
@@ -19,26 +36,26 @@ const TOP_STRING: &[u8] = "<!DOCTYPE html>
     <title>Stride</title>
   </head>
   <body>
-    <nav>"
-    .as_bytes();
+    <nav>";
 
-const MID_STRING: &[u8] = "\n</nav>\n<main>\n".as_bytes();
+const MID_STRING: &[u8] = b"\n</nav>\n<main>\n";
 
-const BOTTOM_STRING: &[u8] = "</main>
+const BOTTOM_STRING: &[u8] = b"</main>
   </body>
 </html>
-"
-.as_bytes();
+";
 
 fn main() {
     let args = std::env::args();
 
-    let mut search_dict = [Stride {
-        text: "Spoofing".into(),
-        prefixes: vec!["s"].into_iter().map(|e| e.into()).collect(),
-        wanted: false,
-        paths: vec![],
-    }];
+    let mut search_dict = [
+       Stride::new("Spoofing", &["s"]),
+       Stride::new("Tampering", &["t"]),
+        Stride::new("Repudiation", &["r"]),
+        Stride::new("Information Disclosure", &["i"]),
+        Stride::new("Denial of Service", &["d"]),
+        Stride::new("Elevation of Privillege", &["e"])
+    ];
 
     args.for_each(|arg| {
         search_dict
@@ -60,7 +77,7 @@ fn main() {
     let mut compile_writer = BufWriter::new(compile_file);
 
     // Read all directories and files in the current directory
-    std::fs::read_dir(".")
+    let keywords: Vec<(PathBuf, Vec<Stride>)> = std::fs::read_dir(".")
         .unwrap()
         .filter_map(|path_r| {
             path_r
@@ -90,7 +107,7 @@ fn main() {
                 .iter()
                 .filter(|term| {
                     lines.any(|line| {
-                        line.map(|line| line.contains(&term.text))
+                        line.map(|line| line.to_lowercase().contains(&term.text.to_lowercase()))
                             .ok()
                             .filter(|t| *t)
                             .is_some()
@@ -113,70 +130,74 @@ fn main() {
                 });
 
             (path, has_keywords)
-        })
-        .map(|(path, mut keywords)| {
-            keywords
-                .iter_mut()
-                .for_each(|stride| stride.paths.push(path.clone()));
-            keywords
-        })
-        .for_each(|stride| {
-            let writer = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open("./site.html")
-                .map(BufWriter::new);
+        }).collect();
 
-            let _ = writer.map(|mut writer| {
-                let _ = writer.write_all(TOP_STRING);
-                stride.iter().for_each(|stride| {
-                    let _ =
-                        writer.write_all(format!("\n     <h3>{}</h3><ul>", stride.text).as_bytes());
-                    stride
-                        .paths
-                        .iter()
-                        .map(|path| path.parent().unwrap().file_name().unwrap())
-                        .for_each(|dir| {
-                            let _ = writer.write_all(
-                                format!(
-                                    "<li><a href=\"#{}\">{}</a></li>",
-                                    dir.to_string_lossy().replace(' ', "-"),
-                                    dir.to_string_lossy()
-                                )
-                                .as_bytes(),
-                            );
-                        });
-                });
-                let _ = writer.write_all(MID_STRING);
-
-                stride.iter().for_each(|stride| {
-                    let _ = writer.write_all(format!("<h2>{}</h2><div>", stride.text).as_bytes());
-
-                    stride.paths.iter().for_each(|path| {
-                        let _ = File::open(path).map(BufReader::new).map(|reader| {
-                            let dir = path
-                                .parent()
-                                .unwrap()
-                                .file_name()
-                                .unwrap()
-                                .to_string_lossy();
-                            let _ = writer.write_all(
-                                format!("<h3 id=\"{}\">{}</h3>", dir.replace(' ', "-"), dir)
-                                    .as_bytes(),
-                            );
-                            reader.lines().for_each(|line| {
-                                let _ = line.map(|str| {
-                                    let _ = writer.write_all(str.as_bytes());
-                                });
-                                let _ = writer.write_all("<br />".as_bytes());
-                            })
-                        });
-                    });
-                    let _ = writer.write_all("</div>".as_bytes());
-                });
-                let _ = writer.write_all(BOTTOM_STRING);
-                writer
+    keywords.iter().for_each(|(path, keywords)| {
+        keywords.iter().for_each(|key| {
+            let found = search_dict.iter_mut().find(|term| *term == key);
+            found.map(|term| {
+                term.paths.push(path.clone());
             });
         });
+    });
+
+    search_dict.iter().for_each(|_| {
+        let writer = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("./site.html")
+            .map(BufWriter::new);
+
+        let _ = writer.map(|mut writer| {
+            let _ = writer.write_all(TOP_STRING);
+            search_dict.iter().for_each(|stride| {
+                let _ =
+                    writer.write_all(format!("\n     <h3>{}</h3><ul>", stride.text).as_bytes());
+                stride
+                    .paths
+                    .iter()
+                    .map(|path| path.parent().unwrap().file_name().unwrap())
+                    .for_each(|dir| {
+                        let _ = writer.write_all(
+                            format!(
+                                "<li><a href=\"#{}\">{}</a></li>",
+                                dir.to_string_lossy().replace(' ', "-"),
+                                dir.to_string_lossy()
+                            )
+                            .as_bytes(),
+                        );
+                    });
+            });
+            let _ = writer.write_all(MID_STRING);
+
+            search_dict.iter().for_each(|stride| {
+                let _ = writer.write_all(format!("<h2>{}</h2>\n<div>\n", stride.text).as_bytes());
+
+                stride.paths.iter().for_each(|path| {
+                    let _ = File::open(path).map(BufReader::new).map(|reader| {
+                        let dir = path
+                            .parent()
+                            .unwrap()
+                            .file_name()
+                            .unwrap()
+                            .to_string_lossy();
+                        let _ = writer.write_all(
+                            format!("<h3 id=\"{}\">{}</h3>\n", dir.replace(' ', "-"), dir)
+                                .as_bytes(),
+                        );
+                        reader.lines().for_each(|line| {
+                            let _ = line.map(|str| {
+                                let _ = writer.write_all(str.as_bytes());
+                            });
+                            let _ = writer.write_all("<br />\n".as_bytes());
+                        })
+                    });
+                });
+                let _ = writer.write_all("</div>".as_bytes());
+            });
+            let _ = writer.write_all(BOTTOM_STRING);
+            writer
+        });
+    });
 }

@@ -22,7 +22,7 @@ impl Stride {
             text: text.into(),
             prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
             wanted: false,
-            paths: vec![]
+            paths: vec![],
         }
     }
 }
@@ -49,12 +49,12 @@ fn main() {
     let args = std::env::args();
 
     let mut search_dict = [
-       Stride::new("Spoofing", &["s"]),
-       Stride::new("Tampering", &["t"]),
+        Stride::new("Spoofing", &["s"]),
+        Stride::new("Tampering", &["t"]),
         Stride::new("Repudiation", &["r"]),
         Stride::new("Information Disclosure", &["i"]),
         Stride::new("Denial of Service", &["d"]),
-        Stride::new("Elevation of Privillege", &["e"])
+        Stride::new("Elevation of Privillege", &["e"]),
     ];
 
     args.for_each(|arg| {
@@ -130,7 +130,8 @@ fn main() {
                 });
 
             (path, has_keywords)
-        }).collect();
+        })
+        .collect();
 
     keywords.iter().for_each(|(path, keywords)| {
         keywords.iter().for_each(|key| {
@@ -152,8 +153,7 @@ fn main() {
         let _ = writer.map(|mut writer| {
             let _ = writer.write_all(TOP_STRING);
             search_dict.iter().for_each(|stride| {
-                let _ =
-                    writer.write_all(format!("\n     <h3>{}</h3><ul>", stride.text).as_bytes());
+                let _ = writer.write_all(format!("\n     <h3>{}</h3><ul>", stride.text).as_bytes());
                 stride
                     .paths
                     .iter()
@@ -190,11 +190,11 @@ fn main() {
                             let _ = line.map(|str| {
                                 let _ = writer.write_all(str.as_bytes());
                             });
-                            let _ = writer.write_all("<br />\n".as_bytes());
+                            let _ = writer.write_all(b"<br />\n");
                         })
                     });
                 });
-                let _ = writer.write_all("</div>".as_bytes());
+                let _ = writer.write_all(b"</div>");
             });
             let _ = writer.write_all(BOTTOM_STRING);
             writer
